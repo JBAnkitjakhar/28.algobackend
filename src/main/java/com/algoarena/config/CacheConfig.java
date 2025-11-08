@@ -33,10 +33,7 @@ public class CacheConfig {
                 "adminStats", // Admin statistics
 
                 // Short-lived caches
-                "categoryStats", // Category statistics
-                // Interview Prep caches (NEW)
-                "interviewTopics", // Interview topics list
-                "interviewDocuments" // Interview documents content
+                "categoryStats" // Category statistics
         ));
 
         return cacheManager;

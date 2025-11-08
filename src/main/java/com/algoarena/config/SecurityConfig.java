@@ -89,12 +89,7 @@ public class SecurityConfig {
                                 "/users/progress", // User progress stats
                                 "/users/progress/recent", // Recent user progress
                                 "/files/solutions/*/visualizers", // List visualizers by solution
-                                "/files/visualizers/**", // Access visualizer files
-                                "/interview/topics", // Get all topics
-                                "/interview/topics/*", // Get single topic
-                                "/interview/topics/*/documents", // Get documents list (no content)
-                                "/interview/topics/*/documents/slug/*", // Get document by slug
-                                "/interview/documents/*" // Get document full content
+                                "/files/visualizers/**"  // Access visualizer files
                         ).authenticated()
 
                         // USER PROGRESS UPDATE ENDPOINTS
@@ -123,8 +118,7 @@ public class SecurityConfig {
                                 "/files/visualizers/*/upload", // Visualizer uploads (admin only)
                                 "/files/visualizers/*/delete", // Visualizer deletes (admin only)
                                 "/files/visualizers/*/metadata", // Visualizer metadata (admin only)
-                                "/files/visualizers/*/download", // Visualizer downloads (admin only)
-                                "/interview/admin/**" // All admin interview endpoints
+                                "/files/visualizers/*/download"  // Visualizer downloads (admin only)
                         ).hasAnyRole("ADMIN", "SUPERADMIN")
 
                         // ADMIN CREATE/UPDATE/DELETE OPERATIONS
@@ -134,22 +128,6 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "SUPERADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/questions/*", "/categories/*", "/solutions/*")
                         .hasAnyRole("ADMIN", "SUPERADMIN")
-                        // Interview Prep Admin CRUD Operations
-                        .requestMatchers(HttpMethod.POST,
-                                "/interview/admin/topics", // Create topic
-                                "/interview/admin/documents", // Create document
-                                "/interview/admin/upload-image" // Upload image
-                        ).hasAnyRole("ADMIN", "SUPERADMIN")
-
-                        .requestMatchers(HttpMethod.PUT,
-                                "/interview/admin/topics/*", // Update topic
-                                "/interview/admin/documents/*" // Update document
-                        ).hasAnyRole("ADMIN", "SUPERADMIN")
-
-                        .requestMatchers(HttpMethod.DELETE,
-                                "/interview/admin/topics/*", // Delete topic
-                                "/interview/admin/documents/*" // Delete document
-                        ).hasAnyRole("ADMIN", "SUPERADMIN")
 
                         // Everything else requires authentication
                         .anyRequest().authenticated())

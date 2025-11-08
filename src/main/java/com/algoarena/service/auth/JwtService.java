@@ -67,12 +67,6 @@ public class JwtService {
         return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
     }
 
-    // Extract user ID from token (username is the user ID)
-    public String extractUserId(String token) {
-        //  the username IS the user ID (MongoDB ID)
-        return extractUsername(token);
-    }
-
     // Check if token is expired
     private boolean isTokenExpired(String token) {
         return extractExpiration(token).before(new Date());
