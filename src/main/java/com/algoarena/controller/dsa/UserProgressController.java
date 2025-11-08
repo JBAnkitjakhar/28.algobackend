@@ -27,7 +27,7 @@ public class UserProgressController {
 
     /**
      * Get current user's progress statistics
-     * GET /api/users/progress
+     * GET /users/progress
      */
     @GetMapping("/users/progress")
     public ResponseEntity<Map<String, Object>> getCurrentUserProgressStats(Authentication authentication) {
@@ -38,7 +38,7 @@ public class UserProgressController {
 
     /**
      * TEMPORARY DEBUG ENDPOINT - Remove after debugging
-     * GET /api/debug/user-progress
+     * GET /debug/user-progress
      */
     @GetMapping("/debug/user-progress")
     public ResponseEntity<String> debugUserProgress(Authentication authentication) {
@@ -49,7 +49,7 @@ public class UserProgressController {
 
     /**
      * Get current user's recent progress (last 10 solved questions)
-     * GET /api/users/progress/recent
+     * GET /users/progress/recent
      */
     @GetMapping("/users/progress/recent")
     public ResponseEntity<List<UserProgressDTO>> getCurrentUserRecentProgress(Authentication authentication) {
@@ -60,7 +60,7 @@ public class UserProgressController {
 
     /**
      * Get progress for specific question and current user
-     * GET /api/questions/{questionId}/progress
+     * GET /questions/{questionId}/progress
      */
     @GetMapping("/questions/{questionId}/progress")
     public ResponseEntity<UserProgressDTO> getQuestionProgress(
@@ -78,7 +78,7 @@ public class UserProgressController {
 
     /**
      * Update progress for specific question
-     * POST /api/questions/{questionId}/progress
+     * POST /questions/{questionId}/progress
      */
     @PostMapping("/questions/{questionId}/progress")
     public ResponseEntity<UserProgressDTO> updateQuestionProgress(
@@ -99,7 +99,7 @@ public class UserProgressController {
 
     /**
      * Get progress for specific category and current user
-     * GET /api/categories/{categoryId}/progress
+     * GET /categories/{categoryId}/progress
      */
     @GetMapping("/categories/{categoryId}/progress")
     public ResponseEntity<Map<String, Object>> getCategoryProgress(
@@ -114,7 +114,7 @@ public class UserProgressController {
 
     /**
      * Get progress for specific user (Admin only)
-     * GET /api/users/{userId}/progress
+     * GET /users/{userId}/progress
      */
     @GetMapping("/users/{userId}/progress")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
@@ -125,7 +125,7 @@ public class UserProgressController {
 
     /**
      * Get all progress for a user (Admin only)
-     * GET /api/users/{userId}/progress/all
+     * GET /users/{userId}/progress/all
      */
     @GetMapping("/users/{userId}/progress/all")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
@@ -136,7 +136,7 @@ public class UserProgressController {
 
     /**
      * Get global progress statistics (Admin only)
-     * GET /api/admin/progress/global
+     * GET /admin/progress/global
      */
     @GetMapping("/admin/progress/global")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
@@ -147,7 +147,7 @@ public class UserProgressController {
 
     /**
      * BULK: Get progress status for multiple questions (no 404s)
-     * POST /api/users/progress/bulk
+     * POST /users/progress/bulk
      * Body: { "questionIds": ["id1", "id2", "id3"] }
      * Response: { "id1": true, "id2": false, "id3": true }
      */

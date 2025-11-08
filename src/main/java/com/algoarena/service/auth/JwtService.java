@@ -39,8 +39,7 @@ public class JwtService {
     private String buildToken(
             Map<String, Object> extraClaims,
             UserDetails userDetails,
-            long expiration
-    ) {
+            long expiration) {
         return Jwts
                 .builder()
                 .claims(extraClaims)
@@ -66,6 +65,12 @@ public class JwtService {
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
         return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    }
+
+    // Extract user ID from token (username is the user ID)
+    public String extractUserId(String token) {
+        //  the username IS the user ID (MongoDB ID)
+        return extractUsername(token);
     }
 
     // Check if token is expired
