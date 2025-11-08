@@ -24,7 +24,7 @@ public class CloudinaryService {
         config.put("api_key", cloudinaryConfig.getApiKey());
         config.put("api_secret", cloudinaryConfig.getApiSecret());
         config.put("secure", "true");
-        
+
         this.cloudinary = new Cloudinary(config);
     }
 
@@ -34,29 +34,30 @@ public class CloudinaryService {
     @SuppressWarnings("unchecked")
     public Map<String, Object> uploadImage(MultipartFile file, String folder) throws IOException {
         validateImageFile(file);
-        
+
         String publicId = folder + "/" + UUID.randomUUID().toString();
-        
+
         Map<String, Object> uploadOptions = new HashMap<>();
         uploadOptions.put("folder", "algoarena/" + folder);
         uploadOptions.put("public_id", publicId);
         uploadOptions.put("resource_type", "image");
         // uploadOptions.put("format", "auto");
         // uploadOptions.put("quality", "auto:good");
-        
+
         // FIXED: Suppress the generic type warning
         @SuppressWarnings("rawtypes")
         Transformation transformation = new Transformation()
                 .width(1200)
                 .height(800)
                 .crop("limit");
-                // .quality("auto");
-        
+        // .quality("auto");
+
         uploadOptions.put("transformation", transformation);
-        
+
         try {
-            Map<String, Object> result = (Map<String, Object>) cloudinary.uploader().upload(file.getBytes(), uploadOptions);
-            
+            Map<String, Object> result = (Map<String, Object>) cloudinary.uploader().upload(file.getBytes(),
+                    uploadOptions);
+
             Map<String, Object> uploadResult = new HashMap<>();
             uploadResult.put("url", result.get("secure_url"));
             uploadResult.put("secure_url", result.get("secure_url"));
@@ -66,7 +67,7 @@ public class CloudinaryService {
             uploadResult.put("format", result.get("format"));
             uploadResult.put("size", result.get("bytes"));
             uploadResult.put("created_at", result.get("created_at"));
-            
+
             return uploadResult;
         } catch (IOException e) {
             throw new RuntimeException("Failed to upload image to Cloudinary: " + e.getMessage(), e);
@@ -79,6 +80,13 @@ public class CloudinaryService {
 
     public Map<String, Object> uploadSolutionImage(MultipartFile file) throws IOException {
         return uploadImage(file, "solutions");
+    }
+
+    /**
+     * Upload image to Cloudinary for course documents
+     */
+    public Map<String, Object> uploadCourseImage(MultipartFile file) throws IOException {
+        return uploadImage(file, "courses");
     }
 
     @SuppressWarnings("unchecked")
@@ -112,28 +120,28 @@ public class CloudinaryService {
             if (parts.length < 2) {
                 return originalUrl;
             }
-            
+
             String publicIdWithExtension = parts[parts.length - 1];
             String publicId;
-            
+
             if (publicIdWithExtension.contains(".")) {
                 publicId = publicIdWithExtension.substring(0, publicIdWithExtension.lastIndexOf('.'));
             } else {
                 publicId = publicIdWithExtension;
             }
-            
+
             // FIXED: Suppress generic type warning for Transformation
             @SuppressWarnings("rawtypes")
             Transformation transformation = new Transformation()
                     .width(width)
                     .height(height)
                     .crop("fill");
-                    // .quality("auto:good");
-            
+            // .quality("auto:good");
+
             String thumbnailUrl = cloudinary.url()
                     .transformation(transformation)
                     .generate(publicId);
-                    
+
             return thumbnailUrl;
         } catch (Exception e) {
             return originalUrl;
@@ -151,7 +159,7 @@ public class CloudinaryService {
         try {
             // Simple string replacement approach - no warnings
             String transformationString = "w_" + width + ",h_" + height + ",c_fill,q_auto:good";
-            
+
             if (originalUrl.contains("/upload/")) {
                 return originalUrl.replace("/upload/", "/upload/" + transformationString + "/");
             } else {
@@ -185,18 +193,18 @@ public class CloudinaryService {
 
     private boolean isValidImageType(String contentType) {
         return contentType.equals("image/jpeg") ||
-               contentType.equals("image/png") ||
-               contentType.equals("image/gif") ||
-               contentType.equals("image/webp");
+                contentType.equals("image/png") ||
+                contentType.equals("image/gif") ||
+                contentType.equals("image/webp");
     }
 
     private boolean hasValidImageExtension(String filename) {
         String lowercaseFilename = filename.toLowerCase();
         return lowercaseFilename.endsWith(".jpg") ||
-               lowercaseFilename.endsWith(".jpeg") ||
-               lowercaseFilename.endsWith(".png") ||
-               lowercaseFilename.endsWith(".gif") ||
-               lowercaseFilename.endsWith(".webp");
+                lowercaseFilename.endsWith(".jpeg") ||
+                lowercaseFilename.endsWith(".png") ||
+                lowercaseFilename.endsWith(".gif") ||
+                lowercaseFilename.endsWith(".webp");
     }
 
     public boolean testConnection() {

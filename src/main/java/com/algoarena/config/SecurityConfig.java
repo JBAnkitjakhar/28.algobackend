@@ -1,4 +1,6 @@
 // src/main/java/com/algoarena/config/SecurityConfig.java
+// COMPLETE FILE - Replace your entire SecurityConfig.java with this
+
 package com.algoarena.config;
 
 import com.algoarena.security.JwtAuthenticationFilter;
@@ -62,63 +64,80 @@ public class SecurityConfig {
                                 "/oauth2/**",
                                 "/login/**",
                                 "/health",
-
-                                // KEEP-ALIVE STATUS ENDPOINTS (CRITICAL FOR RENDER)
                                 "/status",
                                 "/ping",
                                 "/healthz",
-
                                 "/actuator/**",
                                 "/error")
                         .permitAll()
 
+                        // ============================================
+                        // COURSE ENDPOINTS - ADMIN CREATE/UPDATE/DELETE FIRST
+                        // ============================================
+                        
+                        // COURSE IMAGES - ADMIN ONLY
+                        .requestMatchers(HttpMethod.POST, "/courses/images").hasAnyRole("ADMIN", "SUPERADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/courses/images").hasAnyRole("ADMIN", "SUPERADMIN")
+                        
+                        // COURSE TOPICS - ADMIN ONLY
+                        .requestMatchers(HttpMethod.POST, "/courses/topics").hasAnyRole("ADMIN", "SUPERADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/courses/topics/**").hasAnyRole("ADMIN", "SUPERADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/courses/topics/**").hasAnyRole("ADMIN", "SUPERADMIN")
+                        
+                        // COURSE DOCS - ADMIN ONLY
+                        .requestMatchers(HttpMethod.POST, "/courses/docs").hasAnyRole("ADMIN", "SUPERADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/courses/docs/**").hasAnyRole("ADMIN", "SUPERADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/courses/docs/**").hasAnyRole("ADMIN", "SUPERADMIN")
+                        
+                        // COURSE READ ACCESS - ALL AUTHENTICATED USERS
+                        .requestMatchers(HttpMethod.GET, "/courses/**").authenticated()
+
+                        // ============================================
+                        // EXISTING DSA ENDPOINTS
+                        // ============================================
+                        
                         // AUTHENTICATED USER ENDPOINTS - READ ACCESS
                         .requestMatchers(HttpMethod.GET,
-                                "/questions/summary", // Questions with user progress
-                                "/questions", // Questions list (with filters)
-                                "/questions/{id}", // Question details
-                                "/categories/with-progress", // Categories with user progress
-                                "/categories", // Basic categories list
-                                "/categories/{id}", // Category details
-                                "/categories/{id}/stats", // Category statistics
-                                "/categories/{id}/progress", // User progress for category
-                                "/solutions/question/*", // View solutions by question
-                                "/solutions/{id}", // View individual solutions
-                                "/approaches/**", // User approaches (all operations)
-                                "/compiler/**", // Code execution
-                                "/users/progress", // User progress stats
-                                "/users/progress/recent", // Recent user progress
-                                "/files/solutions/*/visualizers", // List visualizers by solution
-                                "/files/visualizers/**"  // Access visualizer files
+                                "/questions/summary",
+                                "/questions",
+                                "/questions/{id}",
+                                "/categories/with-progress",
+                                "/categories",
+                                "/categories/{id}",
+                                "/categories/{id}/stats",
+                                "/categories/{id}/progress",
+                                "/solutions/question/*",
+                                "/solutions/{id}",
+                                "/approaches/**",
+                                "/compiler/**",
+                                "/users/progress",
+                                "/users/progress/recent",
+                                "/files/solutions/*/visualizers",
+                                "/files/visualizers/**"
                         ).authenticated()
 
                         // USER PROGRESS UPDATE ENDPOINTS
-                        .requestMatchers(HttpMethod.PUT,
-                                "/questions/*/progress" // Update question progress (mark solved/unsolved)
-                        ).authenticated()
-
-                        .requestMatchers(HttpMethod.POST,
-                                "/questions/*/progress" // Create/update question progress
-                        ).authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/questions/*/progress").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/questions/*/progress").authenticated()
 
                         // USER APPROACH MANAGEMENT ENDPOINTS
                         .requestMatchers(HttpMethod.POST, "/approaches/question/*").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/approaches/*").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/approaches/*").authenticated()
 
-                        // ADMIN-ONLY ENDPOINTS - CREATE/UPDATE/DELETE OPERATIONS
+                        // ADMIN-ONLY ENDPOINTS
                         .requestMatchers(
-                                "/admin/**", // All admin endpoints
-                                "/questions/stats", // Question statistics
-                                "/questions/search", // Question search (admin)
-                                "/solutions/question/*/create", // Create solutions
-                                "/solutions/*/update", // Update solutions
-                                "/solutions/*/delete", // Delete solutions
-                                "/files/images/**", // Image uploads (admin only)
-                                "/files/visualizers/*/upload", // Visualizer uploads (admin only)
-                                "/files/visualizers/*/delete", // Visualizer deletes (admin only)
-                                "/files/visualizers/*/metadata", // Visualizer metadata (admin only)
-                                "/files/visualizers/*/download"  // Visualizer downloads (admin only)
+                                "/admin/**",
+                                "/questions/stats",
+                                "/questions/search",
+                                "/solutions/question/*/create",
+                                "/solutions/*/update",
+                                "/solutions/*/delete",
+                                "/files/images/**",
+                                "/files/visualizers/*/upload",
+                                "/files/visualizers/*/delete",
+                                "/files/visualizers/*/metadata",
+                                "/files/visualizers/*/download"
                         ).hasAnyRole("ADMIN", "SUPERADMIN")
 
                         // ADMIN CREATE/UPDATE/DELETE OPERATIONS
@@ -131,7 +150,7 @@ public class SecurityConfig {
 
                         // Everything else requires authentication
                         .anyRequest().authenticated())
-                // Add exception handling
+                        
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(401);
@@ -161,22 +180,18 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Get allowed origins from config - handle potential null/empty values
         String origins = appConfig.getCors().getAllowedOrigins();
         if (origins != null && !origins.trim().isEmpty()) {
             List<String> allowedOrigins = Arrays.asList(origins.split(","));
             configuration.setAllowedOriginPatterns(allowedOrigins);
         } else {
-            // Default fallback
             configuration.setAllowedOriginPatterns(List.of("http://localhost:3000"));
         }
 
-        // Handle methods
         String methods = appConfig.getCors().getAllowedMethods();
         if (methods != null && !methods.trim().isEmpty()) {
             configuration.setAllowedMethods(Arrays.asList(methods.split(",")));
         } else {
-            // Default methods
             configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         }
 

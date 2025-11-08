@@ -23,17 +23,22 @@ public class CacheConfig {
         // Configure cache names for different data types
         cacheManager.setCacheNames(Arrays.asList(
                 // User-specific caches (evicted when user data changes)
-                "questionsSummary", // Questions with user progress
-                "categoriesProgress", // Categories with user progress
-                "userProgressStats", // User progress statistics
+                "questionsSummary",         // Questions with user progress
+                "categoriesProgress",       // Categories with user progress
+                "userProgressStats",        // User progress statistics
 
                 // Global caches (evicted when admin changes data)
-                "questionsList", // Basic questions without user data
-                "categoriesList", // Basic categories without user data
-                "adminStats", // Admin statistics
+                "questionsList",            // Basic questions without user data
+                "categoriesList",           // Basic categories without user data
+                "adminStats",               // Admin statistics
 
                 // Short-lived caches
-                "categoryStats" // Category statistics
+                "categoryStats",            // Category statistics
+
+                // COURSE/INTERVIEW PREP CACHES
+                "courseTopicsList",         // All topics with document counts
+                "courseDocsList",           // Documents list per topic (without content)
+                "courseDoc"                 // Single document with full content
         ));
 
         return cacheManager;
@@ -53,3 +58,7 @@ public class CacheConfig {
         };
     }
 }
+
+
+
+

@@ -3,7 +3,7 @@ package com.algoarena.controller.file;
 
 import com.algoarena.service.file.CloudinaryService;
 import com.algoarena.service.file.VisualizerService;
-import com.algoarena.service.dsa.SolutionService; // ADD THIS IMPORT
+import com.algoarena.service.dsa.SolutionService;  
 import org.springframework.http.HttpStatus;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -26,7 +26,7 @@ public class FileUploadController {
 
     private final CloudinaryService cloudinaryService;
     private final VisualizerService visualizerService;
-    private final SolutionService solutionService; // ADD THIS LINE
+    private final SolutionService solutionService;  
 
     // UPDATE CONSTRUCTOR TO INCLUDE SolutionService
     public FileUploadController(CloudinaryService cloudinaryService, 
@@ -34,7 +34,7 @@ public class FileUploadController {
                                SolutionService solutionService) {
         this.cloudinaryService = cloudinaryService;
         this.visualizerService = visualizerService;
-        this.solutionService = solutionService; // ADD THIS LINE
+        this.solutionService = solutionService;  
     }
 
     // ==================== IMAGE UPLOAD ENDPOINTS ====================
