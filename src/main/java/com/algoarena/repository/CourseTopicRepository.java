@@ -3,7 +3,6 @@ package com.algoarena.repository;
 
 import com.algoarena.model.CourseTopic;
 import org.springframework.data.mongodb.repository.MongoRepository;
-import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -12,12 +11,10 @@ import java.util.Optional;
 @Repository
 public interface CourseTopicRepository extends MongoRepository<CourseTopic, String> {
 
-    // Find topic by name (case-insensitive)
-    @Query("{ 'name': { $regex: ?0, $options: 'i' } }")
+    // Spring Data MongoDB will automatically implement case-insensitive search
+    // Just use the naming convention - no @Query needed!
     Optional<CourseTopic> findByNameIgnoreCase(String name);
-
-    // Check if topic name exists (case-insensitive)
-    @Query("{ 'name': { $regex: ?0, $options: 'i' } }")
+    
     boolean existsByNameIgnoreCase(String name);
 
     // Find all topics ordered by display order

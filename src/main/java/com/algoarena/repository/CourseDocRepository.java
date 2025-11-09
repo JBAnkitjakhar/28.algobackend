@@ -3,7 +3,6 @@ package com.algoarena.repository;
 
 import com.algoarena.model.CourseDoc;
 import org.springframework.data.mongodb.repository.MongoRepository;
-import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -19,12 +18,11 @@ public interface CourseDocRepository extends MongoRepository<CourseDoc, String> 
     List<CourseDoc> findByTopic_IdOrderByCreatedAtDesc(String topicId);
 
     // Find document by title and topic (case-insensitive)
-    @Query("{ 'title': { $regex: ?0, $options: 'i' }, 'topic.$id': ?1 }")
-    Optional<CourseDoc> findByTitleAndTopicId(String title, String topicId);
+    // Spring Data MongoDB handles this automatically
+    Optional<CourseDoc> findByTitleIgnoreCaseAndTopic_Id(String title, String topicId);
 
     // Check if document title exists in topic (case-insensitive)
-    @Query("{ 'title': { $regex: ?0, $options: 'i' }, 'topic.$id': ?1 }")
-    boolean existsByTitleAndTopicId(String title, String topicId);
+    boolean existsByTitleIgnoreCaseAndTopic_Id(String title, String topicId);
 
     // Count documents in a topic
     long countByTopic_Id(String topicId);
@@ -34,8 +32,4 @@ public interface CourseDocRepository extends MongoRepository<CourseDoc, String> 
 
     // Count total documents
     long count();
-
-    // Find documents exceeding size limit
-    @Query("{ 'totalSize': { $gt: ?0 } }")
-    List<CourseDoc> findDocumentsExceedingSize(Long maxSize);
 }

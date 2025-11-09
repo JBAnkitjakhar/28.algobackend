@@ -73,8 +73,8 @@ public class CourseDocService {
         CourseTopic topic = topicRepository.findById(dto.getTopicId())
                 .orElseThrow(() -> new RuntimeException("Topic not found with id: " + dto.getTopicId()));
 
-        // Check title uniqueness within topic
-        if (docRepository.existsByTitleAndTopicId(dto.getTitle(), dto.getTopicId())) {
+        // Check title uniqueness within topic (FIXED METHOD NAME)
+        if (docRepository.existsByTitleIgnoreCaseAndTopic_Id(dto.getTitle(), dto.getTopicId())) {
             throw new RuntimeException("Document with title '" + dto.getTitle() + "' already exists in this topic");
         }
 
@@ -124,9 +124,9 @@ public class CourseDocService {
             doc.setTopic(newTopic);
         }
 
-        // Check title uniqueness if title is being changed
+        // Check title uniqueness if title is being changed (FIXED METHOD NAME)
         if (!doc.getTitle().equalsIgnoreCase(dto.getTitle())) {
-            if (docRepository.existsByTitleAndTopicId(dto.getTitle(), dto.getTopicId())) {
+            if (docRepository.existsByTitleIgnoreCaseAndTopic_Id(dto.getTitle(), dto.getTopicId())) {
                 throw new RuntimeException("Document with title '" + dto.getTitle() + "' already exists in this topic");
             }
         }
@@ -185,19 +185,23 @@ public class CourseDocService {
                 .orElseThrow(() -> new RuntimeException("Document not found with id: " + id));
 
         // Delete all images from Cloudinary
-        if (doc.getImageUrls() != null) {
+        if (doc.getImageUrls() != null && !doc.getImageUrls().isEmpty()) {
+            System.out.println("Deleting " + doc.getImageUrls().size() + " images from document: " + doc.getTitle());
+            
             for (String imageUrl : doc.getImageUrls()) {
                 try {
                     String publicId = extractPublicIdFromUrl(imageUrl);
                     cloudinaryService.deleteImage(publicId);
+                    System.out.println("  ✓ Deleted image: " + publicId);
                 } catch (Exception e) {
                     // Log error but continue deletion
-                    System.err.println("Failed to delete image " + imageUrl + ": " + e.getMessage());
+                    System.err.println("  ✗ Failed to delete image " + imageUrl + ": " + e.getMessage());
                 }
             }
         }
 
         docRepository.delete(doc);
+        System.out.println("✓ Document deleted: " + doc.getTitle());
     }
 
     /**
@@ -230,8 +234,8 @@ public class CourseDocService {
 
     /**
      * Extract Cloudinary public ID from URL
-     * Example: https://res.cloudinary.com/cloud/image/upload/v123/algoarena/solutions/uuid.jpg
-     * Returns: algoarena/solutions/uuid
+     * Example: https://res.cloudinary.com/cloud/image/upload/v123/algoarena/courses/uuid.jpg
+     * Returns: algoarena/courses/uuid
      */
     private String extractPublicIdFromUrl(String imageUrl) {
         if (imageUrl == null || !imageUrl.contains("cloudinary.com")) {
@@ -239,7 +243,7 @@ public class CourseDocService {
         }
 
         try {
-            // Find the position after "/upload/" or "/upload/v{version}/"
+            // Find the position after "/upload/"
             int uploadIndex = imageUrl.indexOf("/upload/");
             if (uploadIndex == -1) {
                 throw new IllegalArgumentException("Invalid Cloudinary URL format");
