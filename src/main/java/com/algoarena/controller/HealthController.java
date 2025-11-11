@@ -21,7 +21,7 @@ public class HealthController {
 
     /**
      * Basic health check endpoint for keep-alive pings
-     * Accessible at: https://arenabackend-5bca.onrender.com/api/status
+     * Accessible at: https://two8-algobackend.onrender.com/api/status
      */
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> status() {
@@ -37,7 +37,7 @@ public class HealthController {
 
     /**
      * Simple ping endpoint for testing
-     * Accessible at: https://arenabackend-5bca.onrender.com/api/ping
+     * Accessible at: https://two8-algobackend.onrender.com/api/ping
      */
     @GetMapping("/ping")
     public ResponseEntity<Map<String, String>> ping() {
@@ -49,7 +49,7 @@ public class HealthController {
 
     /**
      * Detailed health check with MongoDB connectivity
-     * Accessible at: https://arenabackend-5bca.onrender.com/api/healthz
+     * Accessible at: https://two8-algobackend.onrender.com/api/healthz
      */
     @GetMapping("/healthz")
     public ResponseEntity<Map<String, Object>> detailedHealth() {
