@@ -1,14 +1,11 @@
-# Dockerfile - Fixed for timezone and Render PORT environment variable issue
-
-# Use official OpenJDK 21 image
-FROM openjdk:21-jdk-slim
+FROM eclipse-temurin:21-jdk-alpine
 
 # Set timezone to UTC
 ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Install curl for health checks
-RUN apt-get update && apt-get install -y curl tzdata && rm -rf /var/lib/apt/lists/*
+# Install curl for health checks (Alpine uses apk instead of apt-get)
+RUN apk add --no-cache curl tzdata
 
 # Set working directory
 WORKDIR /app
@@ -29,8 +26,8 @@ COPY src/ ./src/
 # Build the application
 RUN ./mvnw clean package -DskipTests -B
 
-# Create non-root user for security
-RUN addgroup --system spring && adduser --system spring --ingroup spring
+# Create non-root user for security (Alpine syntax)
+RUN addgroup -S spring && adduser -S spring -G spring
 RUN chown -R spring:spring /app
 USER spring
 
@@ -41,5 +38,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8080/api/actuator/health || exit 1
 
-# ✅ UPDATED: Run the application with production profile AND timezone flag
-CMD java -Duser.timezone=UTC -Dspring.profiles.active=prod -jar target/algoarena-backend-0.0.1-SNAPSHOT.jar
+# Run the application with production profile AND timezone flag
+CMD ["java", "-Duser.timezone=UTC", "-Dspring.profiles.active=prod", "-jar", "target/algoarena-backend-0.0.1-SNAPSHOT.jar"]
