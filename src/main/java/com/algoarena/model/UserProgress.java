@@ -2,104 +2,91 @@
 package com.algoarena.model;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.mapping.DBRef;
-import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.Indexed;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @Document(collection = "userprogress")
-@CompoundIndex(def = "{'user': 1, 'question': 1}", unique = true)
 public class UserProgress {
 
     @Id
     private String id;
-
-    @DBRef
-    private User user;
-
-    @DBRef
-    private Question question;
-
-    private boolean solved;
-    private QuestionLevel level;
-    private LocalDateTime solvedAt;
-
-    // Constructors
+    
+    @Indexed(unique = true)
+    private String userId;
+    
+    @Version  // Thread-safe: prevents concurrent modifications
+    private Long version;
+    
+    private Map<String, LocalDateTime> solvedQuestions = new HashMap<>();
+    
     public UserProgress() {}
-
-    public UserProgress(User user, Question question, boolean solved, QuestionLevel level) {
-        this.user = user;
-        this.question = question;
-        this.solved = solved;
-        this.level = level;
-        if (solved) {
-            this.solvedAt = LocalDateTime.now();
-        }
+    
+    public UserProgress(String userId) {
+        this.id = userId;
+        this.userId = userId;
     }
-
-    // Getters and Setters
+    
+    public void addSolvedQuestion(String questionId) {
+        solvedQuestions.put(questionId, LocalDateTime.now());
+    }
+    
+    public boolean isQuestionSolved(String questionId) {
+        return solvedQuestions.containsKey(questionId);
+    }
+    
+    public LocalDateTime getSolvedAt(String questionId) {
+        return solvedQuestions.get(questionId);
+    }
+    
+    public void removeSolvedQuestion(String questionId) {
+        solvedQuestions.remove(questionId);
+    }
+    
     public String getId() {
         return id;
     }
-
+    
     public void setId(String id) {
         this.id = id;
     }
-
-    public User getUser() {
-        return user;
+    
+    public String getUserId() {
+        return userId;
     }
-
-    public void setUser(User user) {
-        this.user = user;
+    
+    public void setUserId(String userId) {
+        this.userId = userId;
+        this.id = userId;
     }
-
-    public Question getQuestion() {
-        return question;
+    
+    public Long getVersion() {
+        return version;
     }
-
-    public void setQuestion(Question question) {
-        this.question = question;
+    
+    public void setVersion(Long version) {
+        this.version = version;
     }
-
-    public boolean isSolved() {
-        return solved;
+    
+    public Map<String, LocalDateTime> getSolvedQuestions() {
+        return solvedQuestions;
     }
-
-    public void setSolved(boolean solved) {
-        this.solved = solved;
-        if (solved && this.solvedAt == null) {
-            this.solvedAt = LocalDateTime.now();
-        } else if (!solved) {
-            this.solvedAt = null;
-        }
+    
+    public void setSolvedQuestions(Map<String, LocalDateTime> solvedQuestions) {
+        this.solvedQuestions = solvedQuestions;
     }
-
-    public QuestionLevel getLevel() {
-        return level;
-    }
-
-    public void setLevel(QuestionLevel level) {
-        this.level = level;
-    }
-
-    public LocalDateTime getSolvedAt() {
-        return solvedAt;
-    }
-
-    public void setSolvedAt(LocalDateTime solvedAt) {
-        this.solvedAt = solvedAt;
-    }
-
+    
     @Override
     public String toString() {
         return "UserProgress{" +
                 "id='" + id + '\'' +
-                ", user=" + (user != null ? user.getName() : "null") +
-                ", question=" + (question != null ? question.getTitle() : "null") +
-                ", solved=" + solved +
-                ", level=" + level +
+                ", userId='" + userId + '\'' +
+                ", version=" + version +
+                ", totalSolved=" + solvedQuestions.size() +
                 '}';
     }
 }

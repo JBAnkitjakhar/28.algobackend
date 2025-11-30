@@ -1,30 +1,23 @@
-// src/main/java/com/algoarena/service/dsa/CategoryService.java - FIXED CACHE EVICTION
-
+// File: src/main/java/com/algoarena/service/dsa/CategoryService.java
 package com.algoarena.service.dsa;
 
 import com.algoarena.dto.dsa.CategoryDTO;
-import com.algoarena.dto.dsa.CategorySummaryDTO;
+import com.algoarena.dto.dsa.CategoryMetadataDTO;
 import com.algoarena.model.Category;
 import com.algoarena.model.Question;
 import com.algoarena.model.QuestionLevel;
 import com.algoarena.model.User;
-import com.algoarena.model.UserProgress;
 import com.algoarena.repository.CategoryRepository;
 import com.algoarena.repository.QuestionRepository;
 import com.algoarena.repository.SolutionRepository;
-import com.algoarena.repository.ApproachRepository;
-import com.algoarena.repository.UserProgressRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.HashMap;
 
 @Service
 @Transactional
@@ -40,253 +33,270 @@ public class CategoryService {
     private SolutionRepository solutionRepository;
 
     @Autowired
-    private ApproachRepository approachRepository;
+    private UserProgressService userProgressService;
 
     @Autowired
-    private UserProgressRepository userProgressRepository;
-
-    // ==================== HYBRID CACHING METHODS ====================
+    private ApproachService approachService;
 
     /**
-     * HYBRID: Get all categories with user progress - CACHED with smart eviction
-     * Cache key is user-specific to avoid conflicts between different users
+     * GET /api/categories
+     * Returns Map<String, CategoryDTO> with category name as key
      */
-    @Cacheable(value = "categoriesProgress", key = "#userId")
-    public List<CategorySummaryDTO> getCategoriesWithProgress(String userId) {
-        // System.out.println("CACHE MISS: Fetching fresh categories with progress for user: " + userId);
+    @Cacheable(value = "globalCategories")
+    public Map<String, CategoryDTO> getAllCategories() {
+        System.out.println("CACHE MISS: Fetching all categories from database");
 
-        // Step 1: Get all categories
-        List<Category> categories = categoryRepository.findAllByOrderByNameAsc();
+        List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAscCreatedAtAscNameAsc();
 
-        // Step 2: Get all questions for calculating stats
-        List<Question> allQuestions = questionRepository.findAll();
+        Map<String, CategoryDTO> categoryMap = new LinkedHashMap<>();
 
-        // Step 3: Get all user progress for this user
-        List<UserProgress> allUserProgress = userProgressRepository.findByUser_IdAndSolvedTrue(userId);
+        for (Category category : categories) {
+            CategoryDTO dto = CategoryDTO.fromEntity(category);
+            categoryMap.put(category.getName(), dto);
+        }
 
-        // Create a map for quick lookup of solved questions
-        Set<String> solvedQuestionIds = allUserProgress.stream()
-                .map(progress -> progress.getQuestion().getId())
-                .collect(Collectors.toSet());
+        return categoryMap;
+    }
 
-        // System.out.println("DEBUG: User " + userId + " has solved " + solvedQuestionIds.size() + " questions");
+    /**
+     * GET /api/categories/{id}
+     * Returns single category by ID
+     */
+    @Cacheable(value = "globalCategories", key = "#id")
+    public CategoryDTO getCategoryById(String id) {
+        System.out.println("CACHE MISS: Fetching category by ID: " + id);
 
-        // Step 4: Process each category
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Category not found with id: " + id));
+        return CategoryDTO.fromEntity(category);
+    }
+
+    /**
+     * GET /api/categories/metadata
+     * Get lightweight category metadata (id, name, createdByName, counts, createdAt, updatedAt)
+     */
+    @Cacheable(value = "globalCategoriesMetadata")
+    public List<CategoryMetadataDTO> getCategoriesMetadata() {
+        System.out.println("Fetching category metadata (id, name, createdByName, counts, timestamps)");
+
+        List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAscCreatedAtAscNameAsc();
+
         return categories.stream()
-                .map(category -> {
-                    // Create basic category summary
-                    CategorySummaryDTO summary = new CategorySummaryDTO(
-                            category.getId(),
-                            category.getName(),
-                            category.getCreatedBy().getName(),
-                            category.getCreatedBy().getId(),
-                            category.getCreatedAt(),
-                            category.getUpdatedAt());
-
-                    // Calculate question statistics for this category
-                    List<Question> categoryQuestions = allQuestions.stream()
-                            .filter(q -> q.getCategory().getId().equals(category.getId()))
-                            .collect(Collectors.toList());
-
-                    // Count questions by level
-                    long easyCount = categoryQuestions.stream()
-                            .filter(q -> q.getLevel() == QuestionLevel.EASY).count();
-                    long mediumCount = categoryQuestions.stream()
-                            .filter(q -> q.getLevel() == QuestionLevel.MEDIUM).count();
-                    long hardCount = categoryQuestions.stream()
-                            .filter(q -> q.getLevel() == QuestionLevel.HARD).count();
-
-                    CategorySummaryDTO.QuestionStats.ByLevel questionsByLevel = new CategorySummaryDTO.QuestionStats.ByLevel(
-                            (int) easyCount, (int) mediumCount, (int) hardCount);
-
-                    CategorySummaryDTO.QuestionStats questionStats = new CategorySummaryDTO.QuestionStats(
-                            categoryQuestions.size(), questionsByLevel);
-
-                    // Count solved questions by level in this category
-                    long solvedEasy = categoryQuestions.stream()
-                            .filter(q -> q.getLevel() == QuestionLevel.EASY)
-                            .filter(q -> solvedQuestionIds.contains(q.getId()))
-                            .count();
-
-                    long solvedMedium = categoryQuestions.stream()
-                            .filter(q -> q.getLevel() == QuestionLevel.MEDIUM)
-                            .filter(q -> solvedQuestionIds.contains(q.getId()))
-                            .count();
-
-                    long solvedHard = categoryQuestions.stream()
-                            .filter(q -> q.getLevel() == QuestionLevel.HARD)
-                            .filter(q -> solvedQuestionIds.contains(q.getId()))
-                            .count();
-
-                    int totalSolvedInCategory = (int) (solvedEasy + solvedMedium + solvedHard);
-
-                    CategorySummaryDTO.UserProgressStats.ByLevel solvedByLevel = new CategorySummaryDTO.UserProgressStats.ByLevel(
-                            (int) solvedEasy, (int) solvedMedium, (int) solvedHard);
-
-                    double progressPercentage = categoryQuestions.size() > 0
-                            ? (totalSolvedInCategory * 100.0) / categoryQuestions.size()
-                            : 0.0;
-
-                    CategorySummaryDTO.UserProgressStats userProgressStats = new CategorySummaryDTO.UserProgressStats(
-                            totalSolvedInCategory,
-                            solvedByLevel,
-                            Math.round(progressPercentage * 100.0) / 100.0);
-
-                    // Set the stats on the summary
-                    summary.setQuestionStats(questionStats);
-                    summary.setUserProgress(userProgressStats);
-
-                    return summary;
-                })
+                .map(category -> new CategoryMetadataDTO(
+                    category.getId(), 
+                    category.getName(),
+                    category.getCreatedByName(),
+                    category.getEasyCount(),
+                    category.getMediumCount(),
+                    category.getHardCount(),
+                    category.getTotalQuestions(),
+                    category.getCreatedAt(),
+                    category.getUpdatedAt()
+                ))
                 .collect(Collectors.toList());
     }
 
     /**
-     * HYBRID: Get all categories - CACHED (no user-specific data)
+     * POST /api/categories
+     * Create new category
+     * UPDATED: Stores creator name and ID directly (denormalized)
      */
-    @Cacheable(value = "categoriesList", key = "'all'")
-    public List<CategoryDTO> getAllCategories() {
-        // System.out.println("CACHE MISS: Fetching all categories from database");
-        
-        List<Category> categories = categoryRepository.findAllByOrderByNameAsc();
-        return categories.stream()
-                .map(CategoryDTO::fromEntity)
-                .toList();
-    }
-
-    // ==================== CRUD OPERATIONS WITH PROPER CACHE EVICTION ====================
-
-    /**
-     * Create category with PROPER cache eviction using @CacheEvict
-     */
-    @CacheEvict(value = {"categoriesProgress", "categoriesList", "questionsSummary", "adminStats"}, allEntries = true)
+    @CacheEvict(value = { "globalCategories", "globalCategoriesMetadata" }, allEntries = true)
     public CategoryDTO createCategory(CategoryDTO categoryDTO, User createdBy) {
+        // Check if category name already exists
+        if (categoryRepository.existsByNameIgnoreCase(categoryDTO.getName())) {
+            throw new RuntimeException("Category with name '" + categoryDTO.getName() + "' already exists");
+        }
+
         Category category = new Category();
         category.setName(categoryDTO.getName().trim());
-        category.setCreatedBy(createdBy);
+        
+        // UPDATED: Store denormalized creator fields
+        category.setCreatedByName(createdBy.getName());
+        category.setCreatedById(createdBy.getId());
+
+        // Use provided displayOrder OR auto-assign
+        if (categoryDTO.getDisplayOrder() != null) {
+            category.setDisplayOrder(categoryDTO.getDisplayOrder());
+            System.out.println("Using admin-provided displayOrder: " + categoryDTO.getDisplayOrder());
+        } else {
+            Integer maxOrder = categoryRepository.findTopByOrderByDisplayOrderDesc()
+                    .map(Category::getDisplayOrder)
+                    .orElse(0);
+            category.setDisplayOrder(maxOrder + 1);
+            System.out.println("Auto-assigned displayOrder: " + (maxOrder + 1));
+        }
+
+        // Initialize empty lists
+        category.setEasyQuestionIds(new ArrayList<>());
+        category.setMediumQuestionIds(new ArrayList<>());
+        category.setHardQuestionIds(new ArrayList<>());
+        category.recalculateCounts();
 
         Category savedCategory = categoryRepository.save(category);
-        
-        // System.out.println("Category created and ALL relevant caches evicted");
-        
+
+        System.out.println("✓ Created category: " + savedCategory.getName() +
+                " by " + savedCategory.getCreatedByName() +
+                " (displayOrder: " + savedCategory.getDisplayOrder() + ")");
+
         return CategoryDTO.fromEntity(savedCategory);
     }
 
     /**
-     * Update category with PROPER cache eviction using @CacheEvict
+     * PUT /api/categories/{id}
+     * Update category name and/or displayOrder
      */
-    @CacheEvict(value = {"categoriesProgress", "categoriesList", "questionsSummary", "categoryStats", "adminStats"}, allEntries = true)
+    @CacheEvict(value = { "globalCategories", "globalCategoriesMetadata" }, allEntries = true)
     public CategoryDTO updateCategory(String id, CategoryDTO categoryDTO) {
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+                .orElseThrow(() -> new RuntimeException("Category not found with id: " + id));
 
-        category.setName(categoryDTO.getName().trim());
+        // Check if new name conflicts with existing category (except current one)
+        if (categoryDTO.getName() != null && !categoryDTO.getName().equalsIgnoreCase(category.getName())) {
+            Optional<Category> existingCategory = categoryRepository.findByNameIgnoreCase(categoryDTO.getName());
+            if (existingCategory.isPresent() && !existingCategory.get().getId().equals(id)) {
+                throw new RuntimeException("Category with name '" + categoryDTO.getName() + "' already exists");
+            }
+            category.setName(categoryDTO.getName().trim());
+        }
+
+        // Update displayOrder if provided (duplicates allowed!)
+        if (categoryDTO.getDisplayOrder() != null) {
+            category.setDisplayOrder(categoryDTO.getDisplayOrder());
+        }
 
         Category updatedCategory = categoryRepository.save(category);
-        
-        // System.out.println("Category updated and ALL relevant caches evicted");
+
+        System.out.println("✓ Updated category: " + updatedCategory.getName());
 
         return CategoryDTO.fromEntity(updatedCategory);
     }
-
+// adminQuestionsSummary,\
+//   adminSolutionsSummary,\
+//   globalCategories,\
+//   globalCategoriesMetadata,\
+//   userMeStats,\
+//   questionsMetadata,\
+//   questionDetail,\
+//   questionSolutions,\
+//   solutionDetail,\
     /**
-     * Delete category with PROPER cache eviction using @CacheEvict
+     * DELETE /api/categories/{id}
+     * Delete category and all its questions (cascade)
      */
-    @CacheEvict(value = {"categoriesProgress", "categoriesList", "questionsSummary", "questionsList", "categoryStats", "adminStats"}, allEntries = true)
+    @CacheEvict(value = { "globalCategories", "globalCategoriesMetadata",
+            "questionsMetadata", "adminQuestionsSummary", "adminSolutionsSummary", "questionDetail", "questionSolutions", "solutionDetail", "userMeStats" }, allEntries = true)
     @Transactional
-    public int deleteCategory(String id) {
-        // First, get all questions in this category
-        var questions = questionRepository.findByCategory_Id(id);
+    public Map<String, Object> deleteCategory(String id) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Category not found with id: " + id));
+
+        // Get all questions in this category
+        List<Question> questions = questionRepository.findByCategoryId(id);
         int deletedQuestionsCount = questions.size();
 
-        // Extract question IDs for bulk deletion
         List<String> questionIds = questions.stream()
-                .map(question -> question.getId())
+                .map(Question::getId)
                 .toList();
 
         if (!questionIds.isEmpty()) {
-            // Delete all related data for each question
+            // Delete solutions for all questions
             for (String questionId : questionIds) {
-                solutionRepository.deleteByQuestion_Id(questionId);
-                approachRepository.deleteByQuestion_Id(questionId);
-                userProgressRepository.deleteByQuestion_Id(questionId);
+                solutionRepository.deleteByQuestionId(questionId);
+                approachService.deleteAllApproachesForQuestion(questionId);
             }
 
-            // Delete all questions in this category
+            // Remove questions from user progress
+            int removedFromUsers = userProgressService.removeQuestionsFromAllUsers(questionIds);
+            System.out.println("✓ Removed " + removedFromUsers + " question entries from users' progress");
+
+            // Delete all questions
             questionRepository.deleteAll(questions);
         }
 
-        // Finally, delete the category
+        // Delete category
         categoryRepository.deleteById(id);
 
-        // System.out.println("Category and " + deletedQuestionsCount + " questions deleted, ALL caches evicted");
+        System.out.println("✓ Deleted category '" + category.getName() + "' and " +
+                deletedQuestionsCount + " questions");
 
-        return deletedQuestionsCount;
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", true);
+        result.put("message", "Category deleted successfully");
+        result.put("categoryName", category.getName());
+        result.put("deletedQuestions", deletedQuestionsCount);
+
+        return result;
     }
 
-    // ==================== EXISTING METHODS ====================
+    /**
+     * Helper: Add question to category
+     */
+    @CacheEvict(value = { "globalCategories", "globalCategoriesMetadata" }, allEntries = true)
+    public void addQuestionToCategory(String categoryId, String questionId, QuestionLevel level) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new RuntimeException("Category not found"));
 
-    public CategoryDTO getCategoryById(String id) {
-        Category category = categoryRepository.findById(id).orElse(null);
-        return category != null ? CategoryDTO.fromEntity(category) : null;
+        category.addQuestionId(questionId, level);
+        categoryRepository.save(category);
+
+        System.out.println("✓ Added question to category '" + category.getName() + "' (" + level + ")");
     }
 
+    /**
+     * Helper: Remove question from category
+     */
+    @CacheEvict(value = { "globalCategories", "globalCategoriesMetadata" }, allEntries = true)
+    public void removeQuestionFromCategory(String categoryId, String questionId, QuestionLevel level) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new RuntimeException("Category not found"));
+
+        category.removeQuestionId(questionId, level);
+        categoryRepository.save(category);
+
+        System.out.println("✓ Removed question from category '" + category.getName() + "' (" + level + ")");
+    }
+
+    /**
+     * Helper: Move question between categories or levels
+     */
+    @CacheEvict(value = { "globalCategories", "globalCategoriesMetadata" }, allEntries = true)
+    public void moveQuestion(String oldCategoryId, String newCategoryId,
+            String questionId, QuestionLevel oldLevel, QuestionLevel newLevel) {
+        // Remove from old category
+        if (oldCategoryId != null && !oldCategoryId.equals(newCategoryId)) {
+            Category oldCategory = categoryRepository.findById(oldCategoryId).orElse(null);
+            if (oldCategory != null) {
+                oldCategory.removeQuestionId(questionId, oldLevel);
+                categoryRepository.save(oldCategory);
+                System.out.println("✓ Removed question from old category: " + oldCategory.getName());
+            }
+        } else if (oldCategoryId != null && oldCategoryId.equals(newCategoryId) && oldLevel != newLevel) {
+            // Same category, different level
+            Category category = categoryRepository.findById(oldCategoryId).orElse(null);
+            if (category != null) {
+                category.removeQuestionId(questionId, oldLevel);
+                categoryRepository.save(category);
+            }
+        }
+
+        // Add to new category
+        if (newCategoryId != null) {
+            Category newCategory = categoryRepository.findById(newCategoryId)
+                    .orElseThrow(() -> new RuntimeException("New category not found"));
+            newCategory.addQuestionId(questionId, newLevel);
+            categoryRepository.save(newCategory);
+            System.out.println("✓ Added question to new category: " + newCategory.getName() + " (" + newLevel + ")");
+        }
+    }
+
+    // Utility methods
     public boolean existsById(String id) {
         return categoryRepository.existsById(id);
     }
 
     public boolean existsByName(String name) {
         return categoryRepository.existsByNameIgnoreCase(name);
-    }
-
-    public boolean existsByNameAndNotId(String name, String excludeId) {
-        var existing = categoryRepository.findByNameIgnoreCase(name);
-        return existing.isPresent() && !existing.get().getId().equals(excludeId);
-    }
-
-    /**
-     * Get category statistics - CACHED with shorter TTL
-     */
-    @Cacheable(value = "categoryStats", key = "#categoryId")
-    public Map<String, Object> getCategoryStats(String categoryId) {
-        // System.out.println("CACHE MISS: Fetching category stats for ID: " + categoryId);
-        
-        Map<String, Object> stats = new HashMap<>();
-
-        // Get total questions in this category
-        long questionCount = questionRepository.countByCategory_Id(categoryId);
-        stats.put("totalQuestions", questionCount);
-
-        // Get questions by difficulty level
-        var questions = questionRepository.findByCategory_Id(categoryId);
-        long easyCount = questions.stream().mapToLong(q -> q.getLevel().name().equals("EASY") ? 1 : 0).sum();
-        long mediumCount = questions.stream().mapToLong(q -> q.getLevel().name().equals("MEDIUM") ? 1 : 0).sum();
-        long hardCount = questions.stream().mapToLong(q -> q.getLevel().name().equals("HARD") ? 1 : 0).sum();
-
-        Map<String, Long> levelStats = new HashMap<>();
-        levelStats.put("easy", easyCount);
-        levelStats.put("medium", mediumCount);
-        levelStats.put("hard", hardCount);
-        stats.put("questionsByLevel", levelStats);
-
-        // Get total solutions count
-        List<String> questionIds = questions.stream()
-                .map(q -> q.getId())
-                .toList();
-        long totalSolutions = 0;
-        for (String questionId : questionIds) {
-            totalSolutions += solutionRepository.countByQuestion_Id(questionId);
-        }
-        stats.put("totalSolutions", totalSolutions);
-
-        return stats;
-    }
-
-    public List<CategoryDTO> getCategoriesByCreator(String creatorId) {
-        List<Category> categories = categoryRepository.findByCreatedBy_Id(creatorId);
-        return categories.stream()
-                .map(CategoryDTO::fromEntity)
-                .toList();
     }
 
     public long getTotalCategoriesCount() {

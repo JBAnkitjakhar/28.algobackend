@@ -1,71 +1,54 @@
-// src/main/java/com/algoarena/dto/dsa/ApproachDTO.java
+// src/main/java/com/algoarena/dto/dsa/ApproachDetailDTO.java
 package com.algoarena.dto.dsa;
 
-import com.algoarena.model.Approach;
+import com.algoarena.model.UserApproaches.ApproachData;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-
 import java.time.LocalDateTime;
 
-public class ApproachDTO {
+public class ApproachDetailDTO {
 
     private String id;
-
     private String questionId;
-    private String questionTitle;
-
     private String userId;
     private String userName;
 
     @NotBlank(message = "Text content is required")
-    @Size(min = 10, message = "Text content must be at least 10 characters")
+    @Size(min = 10, max = 10000, message = "Text content must be between 10 and 10000 characters")
     private String textContent;
 
+    @Size(max = 5000, message = "Code content must not exceed 5000 characters")
     private String codeContent;
 
-    @Size(max = 50, message = "Code language must not exceed 50 characters")
+    @NotNull(message = "Code language is required")
+    @Pattern(regexp = "^(java|python|javascript|cpp|c|csharp|go|rust|kotlin|swift|ruby|php|typescript)$", message = "Invalid programming language. Allowed: java, python, javascript, cpp, c, csharp, go, rust, kotlin, swift, ruby, php, typescript")
     private String codeLanguage;
 
     private int contentSize;
+    private double contentSizeKB;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    // Constructors
-    public ApproachDTO() {}
-
-    public ApproachDTO(Approach approach) {
-        this.id = approach.getId();
-        this.questionId = approach.getQuestion() != null ? approach.getQuestion().getId() : null;
-        this.questionTitle = approach.getQuestion() != null ? approach.getQuestion().getTitle() : null;
-        this.userId = approach.getUser() != null ? approach.getUser().getId() : null;
-        this.userName = approach.getUser() != null ? approach.getUser().getName() : null;
-        this.textContent = approach.getTextContent();
-        this.codeContent = approach.getCodeContent();
-        this.codeLanguage = approach.getCodeLanguage();
-        this.contentSize = approach.getContentSize();
-        this.createdAt = approach.getCreatedAt();
-        this.updatedAt = approach.getUpdatedAt();
+    public ApproachDetailDTO() {
     }
 
-    // Static factory method
-    public static ApproachDTO fromEntity(Approach approach) {
-        return new ApproachDTO(approach);
+    public ApproachDetailDTO(ApproachData data, String userId, String userName) {
+        this.id = data.getId();
+        this.questionId = data.getQuestionId();
+        this.userId = userId;
+        this.userName = userName;
+        this.textContent = data.getTextContent();
+        this.codeContent = data.getCodeContent();
+        this.codeLanguage = data.getCodeLanguage();
+        this.contentSize = data.getContentSize();
+        this.contentSizeKB = data.getContentSize() / 1024.0;
+        this.createdAt = data.getCreatedAt();
+        this.updatedAt = data.getUpdatedAt();
     }
 
-    // Helper method to calculate content size (for validation)
-    public int calculateContentSize() {
-        int size = 0;
-        if (textContent != null) {
-            size += textContent.getBytes().length;
-        }
-        if (codeContent != null) {
-            size += codeContent.getBytes().length;
-        }
-        return size;
-    }
-
-    // Getters and Setters
     public String getId() {
         return id;
     }
@@ -80,14 +63,6 @@ public class ApproachDTO {
 
     public void setQuestionId(String questionId) {
         this.questionId = questionId;
-    }
-
-    public String getQuestionTitle() {
-        return questionTitle;
-    }
-
-    public void setQuestionTitle(String questionTitle) {
-        this.questionTitle = questionTitle;
     }
 
     public String getUserId() {
@@ -112,7 +87,6 @@ public class ApproachDTO {
 
     public void setTextContent(String textContent) {
         this.textContent = textContent;
-        this.contentSize = calculateContentSize(); // Recalculate size
     }
 
     public String getCodeContent() {
@@ -121,7 +95,6 @@ public class ApproachDTO {
 
     public void setCodeContent(String codeContent) {
         this.codeContent = codeContent;
-        this.contentSize = calculateContentSize(); // Recalculate size
     }
 
     public String getCodeLanguage() {
@@ -138,6 +111,14 @@ public class ApproachDTO {
 
     public void setContentSize(int contentSize) {
         this.contentSize = contentSize;
+    }
+
+    public double getContentSizeKB() {
+        return contentSizeKB;
+    }
+
+    public void setContentSizeKB(double contentSizeKB) {
+        this.contentSizeKB = contentSizeKB;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -1,14 +1,17 @@
 // src/main/java/com/algoarena/service/dsa/SolutionService.java
 package com.algoarena.service.dsa;
 
+import com.algoarena.dto.dsa.AdminSolutionSummaryDTO;
 import com.algoarena.dto.dsa.SolutionDTO;
 import com.algoarena.model.Solution;
-import com.algoarena.model.Question;
 import com.algoarena.model.User;
 import com.algoarena.repository.SolutionRepository;
 import com.algoarena.repository.QuestionRepository;
+import com.algoarena.service.file.CloudinaryService;
 import com.algoarena.service.file.VisualizerService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,150 +30,207 @@ public class SolutionService {
     private QuestionRepository questionRepository;
 
     @Autowired
+    private CloudinaryService cloudinaryService;
+
+    @Autowired
     private VisualizerService visualizerService;
 
-    // Get solution by ID
+    /**
+     * Get solution by ID - CACHED
+     */
+    @Cacheable(value = "solutionDetail", key = "#id")
     public SolutionDTO getSolutionById(String id) {
+        System.out.println("CACHE MISS: Fetching solution - ID: " + id);
         Solution solution = solutionRepository.findById(id).orElse(null);
         return solution != null ? SolutionDTO.fromEntity(solution) : null;
     }
 
-    // Get all solutions with pagination (Admin only)
-    public Page<SolutionDTO> getAllSolutions(Pageable pageable) {
-        Page<Solution> solutions = solutionRepository.findAllByOrderByCreatedAtDesc(pageable);
-        return solutions.map(SolutionDTO::fromEntity);
-    }
-
-    // Get solutions by question
+    /**
+     * Get solutions by question - CACHED
+     */
+    @Cacheable(value = "questionSolutions", key = "#questionId")
     public List<SolutionDTO> getSolutionsByQuestion(String questionId) {
-        List<Solution> solutions = solutionRepository.findByQuestion_IdOrderByCreatedAtAsc(questionId);
+        System.out.println("CACHE MISS: Fetching solutions for question - ID: " + questionId);
+        List<Solution> solutions = solutionRepository.findByQuestionIdOrderByCreatedAtAsc(questionId);
         return solutions.stream()
                 .map(SolutionDTO::fromEntity)
                 .toList();
     }
 
-    // Create new solution for a question
+    /**
+     * Create new solution
+     */
+    @CacheEvict(value = {
+            "adminSolutionsSummary",
+            "questionSolutions",
+            "adminQuestionsSummary"
+    }, allEntries = true)
     public SolutionDTO createSolution(String questionId, SolutionDTO solutionDTO, User createdBy) {
-        // Find the question
-        Question question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new RuntimeException("Question not found"));
+        // Verify question exists
+        if (!questionRepository.existsById(questionId)) {
+            throw new RuntimeException("Question not found");
+        }
 
         Solution solution = new Solution();
-        solution.setQuestion(question);
+
+        solution.setQuestionId(questionId);
+        solution.setCreatedByName(createdBy.getName());
+
         solution.setContent(solutionDTO.getContent());
-        
-        // ENHANCED: Handle both drive and YouTube links
         solution.setDriveLink(validateAndCleanDriveLink(solutionDTO.getDriveLink()));
         solution.setYoutubeLink(validateAndCleanYoutubeLink(solutionDTO.getYoutubeLink()));
-        
         solution.setImageUrls(solutionDTO.getImageUrls());
         solution.setVisualizerFileIds(solutionDTO.getVisualizerFileIds());
-        solution.setCreatedBy(createdBy);
 
-        // Convert and set code snippet
         if (solutionDTO.getCodeSnippet() != null) {
             Solution.CodeSnippet codeSnippet = new Solution.CodeSnippet(
                     solutionDTO.getCodeSnippet().getLanguage(),
                     solutionDTO.getCodeSnippet().getCode(),
-                    solutionDTO.getCodeSnippet().getDescription()
-            );
+                    solutionDTO.getCodeSnippet().getDescription());
             solution.setCodeSnippet(codeSnippet);
         }
 
         Solution savedSolution = solutionRepository.save(solution);
+
+        System.out.println("✓ Created solution for question: " + questionId);
+        System.out.println("✓ Cleared all solution caches");
+
         return SolutionDTO.fromEntity(savedSolution);
     }
 
-    // Update solution
+    /**
+     * Update solution
+     */
+    @CacheEvict(value = {
+            "adminSolutionsSummary",
+            "solutionDetail",
+            "questionSolutions"
+    }, allEntries = true)
     public SolutionDTO updateSolution(String id, SolutionDTO solutionDTO) {
         Solution solution = solutionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Solution not found"));
 
         solution.setContent(solutionDTO.getContent());
-        
-        // ENHANCED: Update both links
         solution.setDriveLink(validateAndCleanDriveLink(solutionDTO.getDriveLink()));
         solution.setYoutubeLink(validateAndCleanYoutubeLink(solutionDTO.getYoutubeLink()));
-        
         solution.setImageUrls(solutionDTO.getImageUrls());
         solution.setVisualizerFileIds(solutionDTO.getVisualizerFileIds());
 
-        // Update code snippet
         if (solutionDTO.getCodeSnippet() != null) {
             Solution.CodeSnippet codeSnippet = new Solution.CodeSnippet(
                     solutionDTO.getCodeSnippet().getLanguage(),
                     solutionDTO.getCodeSnippet().getCode(),
-                    solutionDTO.getCodeSnippet().getDescription()
-            );
+                    solutionDTO.getCodeSnippet().getDescription());
             solution.setCodeSnippet(codeSnippet);
         } else {
             solution.setCodeSnippet(null);
         }
 
         Solution updatedSolution = solutionRepository.save(solution);
+
+        System.out.println("✓ Updated solution: " + id);
+
         return SolutionDTO.fromEntity(updatedSolution);
     }
 
-    // Delete solution
+    /**
+     * Delete solution
+     */
+    @CacheEvict(value = {
+            "adminSolutionsSummary",
+            "solutionDetail",
+            "questionSolutions",
+            "adminQuestionsSummary"
+    }, allEntries = true)
     public void deleteSolution(String id) {
-        if (!solutionRepository.existsById(id)) {
-            throw new RuntimeException("Solution not found");
+        Solution solution = solutionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Solution not found"));
+
+        // ✅ STEP 1: Delete Cloudinary images
+        if (solution.getImageUrls() != null && !solution.getImageUrls().isEmpty()) {
+            System.out.println("Deleting " + solution.getImageUrls().size() + " images from solution...");
+
+            for (String imageUrl : solution.getImageUrls()) {
+                try {
+                    String publicId = extractPublicIdFromUrl(imageUrl);
+                    cloudinaryService.deleteImage(publicId);
+                    System.out.println("  ✓ Deleted image: " + publicId);
+                } catch (Exception e) {
+                    System.err.println("  ✗ Failed to delete image: " + e.getMessage());
+                }
+            }
         }
 
-        // STEP 1: Delete all associated visualizer HTML files first
+        // ✅ STEP 2: Delete visualizer files
         try {
             visualizerService.deleteAllVisualizersForSolution(id);
+            System.out.println("✓ Deleted visualizers for solution: " + id);
         } catch (Exception e) {
-            System.err.println("Failed to clean up visualizer files for solution " + id + ": " + e.getMessage());
-            // Continue with solution deletion even if file cleanup fails
+            System.err.println("Failed to clean up visualizer files: " + e.getMessage());
         }
 
-        // STEP 2: Delete the solution document
+        // ✅ STEP 3: Delete solution from database
         solutionRepository.deleteById(id);
-        // System.out.println("Successfully deleted solution: " + id);
+        System.out.println("✓ Deleted solution: " + id);
     }
 
-    // Check if solution exists
+    /**
+     * Helper method to extract Cloudinary public ID from URL
+     */
+    private String extractPublicIdFromUrl(String imageUrl) {
+        if (imageUrl == null || !imageUrl.contains("cloudinary.com")) {
+            throw new IllegalArgumentException("Invalid Cloudinary URL");
+        }
+
+        try {
+            int uploadIndex = imageUrl.indexOf("/upload/");
+            if (uploadIndex == -1) {
+                throw new IllegalArgumentException("Invalid Cloudinary URL format");
+            }
+
+            String afterUpload = imageUrl.substring(uploadIndex + 8);
+
+            // Remove version prefix (e.g., "v1234567890/")
+            if (afterUpload.startsWith("v") && afterUpload.indexOf("/") > 0) {
+                afterUpload = afterUpload.substring(afterUpload.indexOf("/") + 1);
+            }
+
+            // Remove file extension
+            int dotIndex = afterUpload.lastIndexOf(".");
+            if (dotIndex > 0) {
+                return afterUpload.substring(0, dotIndex);
+            }
+
+            return afterUpload;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to extract public ID: " + e.getMessage());
+        }
+    }
+
     public boolean existsById(String id) {
         return solutionRepository.existsById(id);
     }
 
-    // Count solutions for a question
     public long countSolutionsByQuestion(String questionId) {
-        return solutionRepository.countByQuestion_Id(questionId);
+        return solutionRepository.countByQuestionId(questionId);
     }
 
-    // Get solutions by creator
-    public Page<SolutionDTO> getSolutionsByCreator(String creatorId, Pageable pageable) {
-        Page<Solution> solutions = solutionRepository.findByCreatedBy_IdOrderByCreatedAtDesc(creatorId, pageable);
-        return solutions.map(SolutionDTO::fromEntity);
-    }
-
-    // Get solutions with visualizers
     public List<SolutionDTO> getSolutionsWithVisualizers() {
-        List<Solution> solutions = solutionRepository.findSolutionsWithVisualizers();
-        return solutions.stream()
+        return solutionRepository.findSolutionsWithVisualizers().stream()
                 .map(SolutionDTO::fromEntity)
                 .toList();
     }
 
-    // Get solutions with images
     public List<SolutionDTO> getSolutionsWithImages() {
-        List<Solution> solutions = solutionRepository.findSolutionsWithImages();
-        return solutions.stream()
+        return solutionRepository.findSolutionsWithImages().stream()
                 .map(SolutionDTO::fromEntity)
                 .toList();
     }
 
-    // NEW: Get solutions with YouTube videos
-    public List<SolutionDTO> getSolutionsWithYoutubeVideos() {
-        List<Solution> solutions = solutionRepository.findSolutionsWithYoutubeVideos();
-        return solutions.stream()
-                .map(SolutionDTO::fromEntity)
-                .toList();
-    }
-
-    // Add image to solution
+    /**
+     * Add/remove image/visualizer methods
+     */
+    @CacheEvict(value = { "adminSolutionsSummary", "solutionDetail", "questionSolutions" }, allEntries = true)
     public SolutionDTO addImageToSolution(String solutionId, String imageUrl) {
         Solution solution = solutionRepository.findById(solutionId)
                 .orElseThrow(() -> new RuntimeException("Solution not found"));
@@ -178,21 +238,18 @@ public class SolutionService {
         if (solution.getImageUrls() == null) {
             solution.setImageUrls(List.of(imageUrl));
         } else {
-            // Check limit (max 10 images per solution)
             if (solution.getImageUrls().size() >= 10) {
-                throw new RuntimeException("Maximum number of images (10) reached for this solution");
+                throw new RuntimeException("Maximum 10 images per solution");
             }
-            
             var updatedUrls = new java.util.ArrayList<>(solution.getImageUrls());
             updatedUrls.add(imageUrl);
             solution.setImageUrls(updatedUrls);
         }
 
-        Solution updatedSolution = solutionRepository.save(solution);
-        return SolutionDTO.fromEntity(updatedSolution);
+        return SolutionDTO.fromEntity(solutionRepository.save(solution));
     }
 
-    // Remove image from solution
+    @CacheEvict(value = { "adminSolutionsSummary", "solutionDetail", "questionSolutions" }, allEntries = true)
     public SolutionDTO removeImageFromSolution(String solutionId, String imageUrl) {
         Solution solution = solutionRepository.findById(solutionId)
                 .orElseThrow(() -> new RuntimeException("Solution not found"));
@@ -203,11 +260,10 @@ public class SolutionService {
             solution.setImageUrls(updatedUrls.isEmpty() ? null : updatedUrls);
         }
 
-        Solution updatedSolution = solutionRepository.save(solution);
-        return SolutionDTO.fromEntity(updatedSolution);
+        return SolutionDTO.fromEntity(solutionRepository.save(solution));
     }
 
-    // Add visualizer to solution
+    @CacheEvict(value = { "adminSolutionsSummary", "solutionDetail", "questionSolutions" }, allEntries = true)
     public SolutionDTO addVisualizerToSolution(String solutionId, String visualizerFileId) {
         Solution solution = solutionRepository.findById(solutionId)
                 .orElseThrow(() -> new RuntimeException("Solution not found"));
@@ -215,21 +271,18 @@ public class SolutionService {
         if (solution.getVisualizerFileIds() == null) {
             solution.setVisualizerFileIds(List.of(visualizerFileId));
         } else {
-            // Check limit (max 2 visualizers per solution)
             if (solution.getVisualizerFileIds().size() >= 2) {
-                throw new RuntimeException("Maximum number of visualizers (2) reached for this solution");
+                throw new RuntimeException("Maximum 2 visualizers per solution");
             }
-            
             var updatedFileIds = new java.util.ArrayList<>(solution.getVisualizerFileIds());
             updatedFileIds.add(visualizerFileId);
             solution.setVisualizerFileIds(updatedFileIds);
         }
 
-        Solution updatedSolution = solutionRepository.save(solution);
-        return SolutionDTO.fromEntity(updatedSolution);
+        return SolutionDTO.fromEntity(solutionRepository.save(solution));
     }
 
-    // Remove visualizer from solution
+    @CacheEvict(value = { "adminSolutionsSummary", "solutionDetail", "questionSolutions" }, allEntries = true)
     public SolutionDTO removeVisualizerFromSolution(String solutionId, String visualizerFileId) {
         Solution solution = solutionRepository.findById(solutionId)
                 .orElseThrow(() -> new RuntimeException("Solution not found"));
@@ -240,55 +293,57 @@ public class SolutionService {
             solution.setVisualizerFileIds(updatedFileIds.isEmpty() ? null : updatedFileIds);
         }
 
-        Solution updatedSolution = solutionRepository.save(solution);
-        return SolutionDTO.fromEntity(updatedSolution);
+        return SolutionDTO.fromEntity(solutionRepository.save(solution));
     }
 
-    // ENHANCED: Private helper methods for link validation
-
-    /**
-     * Validate and clean Google Drive link
-     */
+    // Link validation helpers
     private String validateAndCleanDriveLink(String driveLink) {
-        if (driveLink == null || driveLink.trim().isEmpty()) {
+        if (driveLink == null || driveLink.trim().isEmpty())
             return null;
-        }
-        
         String cleanLink = driveLink.trim();
-        
-        // Validate Google Drive URL
         if (!cleanLink.contains("drive.google.com") && !cleanLink.contains("docs.google.com")) {
-            throw new IllegalArgumentException("Invalid Google Drive link. Must be a valid Google Drive URL.");
+            throw new IllegalArgumentException("Invalid Google Drive link");
         }
-        
-        // Ensure HTTPS
         if (!cleanLink.startsWith("http://") && !cleanLink.startsWith("https://")) {
             cleanLink = "https://" + cleanLink;
         }
-        
+        return cleanLink;
+    }
+
+    private String validateAndCleanYoutubeLink(String youtubeLink) {
+        if (youtubeLink == null || youtubeLink.trim().isEmpty())
+            return null;
+        String cleanLink = youtubeLink.trim();
+        if (!cleanLink.contains("youtube.com") && !cleanLink.contains("youtu.be")) {
+            throw new IllegalArgumentException("Invalid YouTube link");
+        }
+        if (!cleanLink.startsWith("http://") && !cleanLink.startsWith("https://")) {
+            cleanLink = "https://" + cleanLink;
+        }
         return cleanLink;
     }
 
     /**
-     * Validate and clean YouTube link
+     * Now returns data in ONE query!
      */
-    private String validateAndCleanYoutubeLink(String youtubeLink) {
-        if (youtubeLink == null || youtubeLink.trim().isEmpty()) {
-            return null;
-        }
-        
-        String cleanLink = youtubeLink.trim();
-        
-        // Validate YouTube URL
-        if (!cleanLink.contains("youtube.com") && !cleanLink.contains("youtu.be")) {
-            throw new IllegalArgumentException("Invalid YouTube link. Must be a valid YouTube URL.");
-        }
-        
-        // Ensure HTTPS
-        if (!cleanLink.startsWith("http://") && !cleanLink.startsWith("https://")) {
-            cleanLink = "https://" + cleanLink;
-        }
-        
-        return cleanLink;
+    @Cacheable(value = "adminSolutionsSummary", key = "'page_' + #pageable.pageNumber + '_size_' + #pageable.pageSize")
+    public Page<AdminSolutionSummaryDTO> getAdminSolutionsSummary(Pageable pageable) {
+        System.out.println("CACHE MISS: Fetching admin summary - Page: " + pageable.getPageNumber());
+
+        Page<Solution> solutions = solutionRepository.findAllByOrderByCreatedAtDesc(pageable);
+
+        return solutions.map(solution -> {
+            AdminSolutionSummaryDTO dto = new AdminSolutionSummaryDTO();
+            dto.setId(solution.getId());
+            dto.setQuestionId(solution.getQuestionId());
+            dto.setImageCount(solution.getImageUrls() != null ? solution.getImageUrls().size() : 0);
+            dto.setVisualizerCount(
+                    solution.getVisualizerFileIds() != null ? solution.getVisualizerFileIds().size() : 0);
+            dto.setCodeLanguage(solution.getCodeSnippet() != null ? solution.getCodeSnippet().getLanguage() : null);
+            dto.setCreatedByName(solution.getCreatedByName());
+            dto.setCreatedAt(solution.getCreatedAt()); // ✅ ADD THIS LINE
+            dto.setUpdatedAt(solution.getUpdatedAt());
+            return dto;
+        });
     }
 }

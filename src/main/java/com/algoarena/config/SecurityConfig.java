@@ -1,6 +1,4 @@
 // src/main/java/com/algoarena/config/SecurityConfig.java
-// COMPLETE FILE - Replace your entire SecurityConfig.java with this
-
 package com.algoarena.config;
 
 import com.algoarena.security.JwtAuthenticationFilter;
@@ -58,7 +56,11 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // PUBLIC ENDPOINTS (No authentication required)
+                        
+                        // ✅ GENERIC OPTIONS - SECOND RULE
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        
+                        // PUBLIC ENDPOINTS
                         .requestMatchers(
                                 "/auth/**",
                                 "/oauth2/**",
@@ -72,36 +74,46 @@ public class SecurityConfig {
                         .permitAll()
 
                         // ============================================
-                        // COURSE ENDPOINTS - ADMIN CREATE/UPDATE/DELETE FIRST
+                        // COURSE ENDPOINTS - SPECIFIC BEFORE WILDCARD
                         // ============================================
-                        
+
                         // COURSE IMAGES - ADMIN ONLY
                         .requestMatchers(HttpMethod.POST, "/courses/images").hasAnyRole("ADMIN", "SUPERADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/courses/images").hasAnyRole("ADMIN", "SUPERADMIN")
-                        
+
                         // COURSE TOPICS - ADMIN ONLY
                         .requestMatchers(HttpMethod.POST, "/courses/topics").hasAnyRole("ADMIN", "SUPERADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/courses/topics/**").hasAnyRole("ADMIN", "SUPERADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/courses/topics/**").hasAnyRole("ADMIN", "SUPERADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/courses/topics/*").hasAnyRole("ADMIN", "SUPERADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/courses/topics/*").hasAnyRole("ADMIN", "SUPERADMIN")
                         
+                        .requestMatchers(HttpMethod.PUT, "/courses/topics/*/visibility").hasAnyRole("ADMIN", "SUPERADMIN")
+
                         // COURSE DOCS - ADMIN ONLY
                         .requestMatchers(HttpMethod.POST, "/courses/docs").hasAnyRole("ADMIN", "SUPERADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/courses/docs/**").hasAnyRole("ADMIN", "SUPERADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/courses/docs/**").hasAnyRole("ADMIN", "SUPERADMIN")
-                        
-                        // COURSE READ ACCESS - ALL AUTHENTICATED USERS
+                        .requestMatchers(HttpMethod.PUT, "/courses/docs/*").hasAnyRole("ADMIN", "SUPERADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/courses/docs/*").hasAnyRole("ADMIN", "SUPERADMIN")
+
+                        // SPECIFIC ADMIN READ ENDPOINTS - MUST BE BEFORE PUBLIC
+                        .requestMatchers(HttpMethod.GET, "/courses/topicsnamesall").hasAnyRole("ADMIN", "SUPERADMIN")
+
+                        // PUBLIC READ ENDPOINTS - NO AUTH REQUIRED
+                        .requestMatchers(HttpMethod.GET,
+                                "/courses/topicsnames", // Public topic names
+                                "/courses/topics/*/docs", // Docs by topic
+                                "/courses/docs/*", // Single doc
+                                "/courses/stats" // Stats
+                        ).permitAll()
+
+                        // ALL OTHER COURSE READS - AUTHENTICATED USERS
                         .requestMatchers(HttpMethod.GET, "/courses/**").authenticated()
 
                         // ============================================
                         // EXISTING DSA ENDPOINTS
                         // ============================================
-                        
+
                         // AUTHENTICATED USER ENDPOINTS - READ ACCESS
                         .requestMatchers(HttpMethod.GET,
-                                "/questions/summary",
-                                "/questions",
                                 "/questions/{id}",
-                                "/categories/with-progress",
                                 "/categories",
                                 "/categories/{id}",
                                 "/categories/{id}/stats",
@@ -111,10 +123,9 @@ public class SecurityConfig {
                                 "/approaches/**",
                                 "/compiler/**",
                                 "/users/progress",
-                                "/users/progress/recent",
                                 "/files/solutions/*/visualizers",
-                                "/files/visualizers/**"
-                        ).authenticated()
+                                "/files/visualizers/**")
+                        .authenticated()
 
                         // USER PROGRESS UPDATE ENDPOINTS
                         .requestMatchers(HttpMethod.PUT, "/questions/*/progress").authenticated()
@@ -137,8 +148,8 @@ public class SecurityConfig {
                                 "/files/visualizers/*/upload",
                                 "/files/visualizers/*/delete",
                                 "/files/visualizers/*/metadata",
-                                "/files/visualizers/*/download"
-                        ).hasAnyRole("ADMIN", "SUPERADMIN")
+                                "/files/visualizers/*/download")
+                        .hasAnyRole("ADMIN", "SUPERADMIN")
 
                         // ADMIN CREATE/UPDATE/DELETE OPERATIONS
                         .requestMatchers(HttpMethod.POST, "/questions", "/categories", "/solutions")
@@ -150,7 +161,7 @@ public class SecurityConfig {
 
                         // Everything else requires authentication
                         .anyRequest().authenticated())
-                        
+
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(401);

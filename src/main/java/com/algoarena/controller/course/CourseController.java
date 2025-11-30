@@ -3,6 +3,7 @@ package com.algoarena.controller.course;
 
 import com.algoarena.dto.course.CourseDocDTO;
 import com.algoarena.dto.course.CourseTopicDTO;
+import com.algoarena.dto.course.CourseTopicNameDTO;
 import com.algoarena.model.User;
 import com.algoarena.service.course.CourseDocService;
 import com.algoarena.service.course.CourseTopicService;
@@ -27,57 +28,96 @@ public class CourseController {
     @Autowired
     private CourseDocService docService;
 
-    // ==================== PUBLIC ENDPOINTS (User can read) ====================
+    // ==================== PUBLIC ENDPOINTS ====================
 
     /**
-     * API 1: Get all topics with document count
-     * GET /api/courses/topics
-     * 
-     * Returns: List of topics with how many docs in each topic
-     * Used in: Course topics listing page
+     * Get course statistics
+     * GET /api/courses/stats
      */
-    @GetMapping("/topics")
-    public ResponseEntity<Map<String, Object>> getAllTopics() {
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, Object>> getCourseStats() {
         try {
-            List<CourseTopicDTO> topics = topicService.getAllTopicsWithDocCount();
-            
+            CourseTopicService.TopicStatsDTO stats = topicService.getTopicStats();
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("data", topics);
-            response.put("count", topics.size());
-            
+            response.put("data", stats);
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
-            errorResponse.put("error", "Failed to fetch topics");
+            errorResponse.put("error", "Failed to fetch statistics");
             errorResponse.put("message", e.getMessage());
             return ResponseEntity.status(500).body(errorResponse);
         }
     }
 
     /**
-     * API 2: Get all documents for a specific topic (WITHOUT full content)
+     * Get PUBLIC topic names only (for dropdowns, navigation)
+     * GET /api/courses/topicsnames
+     */
+    @GetMapping("/topicsnames")
+    public ResponseEntity<Map<String, Object>> getPublicTopicNames() {
+        try {
+            List<CourseTopicNameDTO> topicNames = topicService.getPublicTopicNames();
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", topicNames);
+            response.put("count", topicNames.size());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", "Failed to fetch topic names");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    /**
+     * Get ALL topic names (admin only, for management)
+     * GET /api/courses/topicsnamesall
+     */
+    @GetMapping("/topicsnamesall")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
+    public ResponseEntity<Map<String, Object>> getAllTopicNames() {
+        try {
+            List<CourseTopicNameDTO> topicNames = topicService.getAllTopicNames();
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", topicNames);
+            response.put("count", topicNames.size());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", "Failed to fetch topic names");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    /**
+     * Get documents by topic (WITHOUT content)
      * GET /api/courses/topics/{topicId}/docs
-     * 
-     * Returns: List of documents with title and metadata ONLY (no content blocks)
-     * Used in: Topic's document listing page
      */
     @GetMapping("/topics/{topicId}/docs")
     public ResponseEntity<Map<String, Object>> getDocsByTopic(@PathVariable String topicId) {
         try {
-            // Get topic info
             CourseTopicDTO topic = topicService.getTopicById(topicId);
-            
-            // Get docs WITHOUT content (optimized for listing)
             List<CourseDocDTO> docs = docService.getDocsByTopic(topicId);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("topic", topic);
             response.put("docs", docs);
             response.put("count", docs.size());
-            
+
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -95,21 +135,18 @@ public class CourseController {
     }
 
     /**
-     * API 3: Get single document WITH full content
+     * Get single document WITH content
      * GET /api/courses/docs/{docId}
-     * 
-     * Returns: Complete document with all content blocks (text, images, code)
-     * Used in: Document reading page
      */
     @GetMapping("/docs/{docId}")
     public ResponseEntity<Map<String, Object>> getDocById(@PathVariable String docId) {
         try {
             CourseDocDTO doc = docService.getDocById(docId);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("data", doc);
-            
+
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -126,39 +163,10 @@ public class CourseController {
         }
     }
 
-    /**
-     * Get single topic by ID
-     * GET /api/courses/topics/{topicId}
-     */
-    @GetMapping("/topics/{topicId}")
-    public ResponseEntity<Map<String, Object>> getTopicById(@PathVariable String topicId) {
-        try {
-            CourseTopicDTO topic = topicService.getTopicById(topicId);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("data", topic);
-            
-            return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("error", "Topic not found");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(404).body(errorResponse);
-        } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("error", "Failed to fetch topic");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(500).body(errorResponse);
-        }
-    }
-
     // ==================== ADMIN ENDPOINTS ====================
 
     /**
-     * Create new topic (Admin only)
+     * Create new topic
      * POST /api/courses/topics
      */
     @PostMapping("/topics")
@@ -169,12 +177,12 @@ public class CourseController {
         try {
             User currentUser = (User) authentication.getPrincipal();
             CourseTopicDTO createdTopic = topicService.createTopic(topicDTO, currentUser);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("data", createdTopic);
             response.put("message", "Topic created successfully");
-            
+
             return ResponseEntity.status(201).body(response);
         } catch (RuntimeException e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -192,7 +200,7 @@ public class CourseController {
     }
 
     /**
-     * Update topic (Admin only)
+     * Update topic
      * PUT /api/courses/topics/{topicId}
      */
     @PutMapping("/topics/{topicId}")
@@ -204,12 +212,12 @@ public class CourseController {
         try {
             User currentUser = (User) authentication.getPrincipal();
             CourseTopicDTO updatedTopic = topicService.updateTopic(topicId, topicDTO, currentUser);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("data", updatedTopic);
             response.put("message", "Topic updated successfully");
-            
+
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -227,7 +235,39 @@ public class CourseController {
     }
 
     /**
-     * Delete topic (Admin only)
+     * Toggle topic public/private
+     * PUT /api/courses/topics/{topicId}/visibility
+     */
+    @PutMapping("/topics/{topicId}/visibility")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERADMIN')")
+    public ResponseEntity<Map<String, Object>> toggleTopicVisibility(@PathVariable String topicId) {
+        System.out.println("🔍 PUT request received for topic: " + topicId); // Add this
+        try {
+            CourseTopicDTO updatedTopic = topicService.toggleTopicVisibility(topicId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", updatedTopic);
+            response.put("message", "Topic visibility toggled successfully");
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", "Failed to toggle visibility");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(400).body(errorResponse);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", "Failed to toggle visibility");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+
+    /**
+     * Delete topic
      * DELETE /api/courses/topics/{topicId}
      */
     @DeleteMapping("/topics/{topicId}")
@@ -235,11 +275,11 @@ public class CourseController {
     public ResponseEntity<Map<String, Object>> deleteTopic(@PathVariable String topicId) {
         try {
             topicService.deleteTopic(topicId);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Topic deleted successfully");
-            
+
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -257,7 +297,7 @@ public class CourseController {
     }
 
     /**
-     * Create new document (Admin only)
+     * Create new document
      * POST /api/courses/docs
      */
     @PostMapping("/docs")
@@ -268,12 +308,12 @@ public class CourseController {
         try {
             User currentUser = (User) authentication.getPrincipal();
             CourseDocDTO createdDoc = docService.createDoc(docDTO, currentUser);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("data", createdDoc);
             response.put("message", "Document created successfully");
-            
+
             return ResponseEntity.status(201).body(response);
         } catch (RuntimeException e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -291,7 +331,7 @@ public class CourseController {
     }
 
     /**
-     * Update document (Admin only)
+     * Update document
      * PUT /api/courses/docs/{docId}
      */
     @PutMapping("/docs/{docId}")
@@ -303,12 +343,12 @@ public class CourseController {
         try {
             User currentUser = (User) authentication.getPrincipal();
             CourseDocDTO updatedDoc = docService.updateDoc(docId, docDTO, currentUser);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("data", updatedDoc);
             response.put("message", "Document updated successfully");
-            
+
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -326,7 +366,7 @@ public class CourseController {
     }
 
     /**
-     * Delete document (Admin only)
+     * Delete document
      * DELETE /api/courses/docs/{docId}
      */
     @DeleteMapping("/docs/{docId}")
@@ -334,11 +374,11 @@ public class CourseController {
     public ResponseEntity<Map<String, Object>> deleteDoc(@PathVariable String docId) {
         try {
             docService.deleteDoc(docId);
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Document deleted successfully");
-            
+
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -355,28 +395,4 @@ public class CourseController {
         }
     }
 
-    // ==================== STATISTICS ENDPOINTS ====================
-
-    /**
-     * Get course statistics
-     * GET /api/courses/stats
-     */
-    @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getCourseStats() {
-        try {
-            CourseTopicService.TopicStatsDTO stats = topicService.getTopicStats();
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("data", stats);
-            
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("error", "Failed to fetch statistics");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(500).body(errorResponse);
-        }
-    }
 }

@@ -10,53 +10,48 @@ import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface QuestionRepository extends MongoRepository<Question, String> {
 
-       // Find questions by category
-       List<Question> findByCategory_Id(String categoryId);
+    // Using categoryId instead of category.id
+    List<Question> findByCategoryId(String categoryId);
+    Page<Question> findByCategoryId(String categoryId, Pageable pageable);
+    
+    List<Question> findByLevel(QuestionLevel level);
+    List<Question> findByCategoryIdAndLevel(String categoryId, QuestionLevel level);
 
-       // Find questions by category with pagination
-       Page<Question> findByCategory_Id(String categoryId, Pageable pageable);
+    @Query("{ 'title': { $regex: ?0, $options: 'i' } }")
+    List<Question> findByTitleContainingIgnoreCase(String title);
 
-       // Find questions by difficulty level
-       List<Question> findByLevel(QuestionLevel level);
+    @Query("{ $or: [ { 'title': { $regex: ?0, $options: 'i' } }, { 'statement': { $regex: ?0, $options: 'i' } } ] }")
+    List<Question> searchByTitleOrStatement(String searchTerm);
 
-       // Find questions by category and level
-       List<Question> findByCategory_IdAndLevel(String categoryId, QuestionLevel level);
+    List<Question> findByCreatedById(String createdById);
 
-       // Search questions by title (case-insensitive)
-       @Query("{ 'title': { $regex: ?0, $options: 'i' } }")
-       List<Question> findByTitleContainingIgnoreCase(String title);
+    long countByCategoryId(String categoryId);
+    long countByLevel(QuestionLevel level);
 
-       // Search questions by title or statement
-       @Query("{ $or: [ " +
-                     "{ 'title': { $regex: ?0, $options: 'i' } }, " +
-                     "{ 'statement': { $regex: ?0, $options: 'i' } } " +
-                     "] }")
-       List<Question> searchByTitleOrStatement(String searchTerm);
+    Page<Question> findAllByOrderByCreatedAtDesc(Pageable pageable);
+    Page<Question> findByCategoryIdOrderByCreatedAtDesc(String categoryId, Pageable pageable);
 
-       // Find questions by creator
-       List<Question> findByCreatedBy_Id(String createdById);
+    @Query(value = "{ 'categoryId': ?0 }", fields = "{ 'title': 1, 'level': 1, 'createdAt': 1 }")
+    List<Question> findQuestionSummaryByCategory(String categoryId);
 
-       // Count questions by category
-       long countByCategory_Id(String categoryId);
+    @Query(value = "{ 'title': { $regex: ?0, $options: 'i' } }", exists = true)
+    boolean existsByTitleIgnoreCase(String title);
 
-       // Count questions by level
-       long countByLevel(QuestionLevel level);
+    long countByDisplayOrderIsNull();
+    List<Question> findByCategoryIdAndLevelAndDisplayOrderIsNull(String categoryId, QuestionLevel level);
+    List<Question> findByDisplayOrderIsNull();
 
-       // Find all questions with pagination and sorting
-       Page<Question> findAllByOrderByCreatedAtDesc(Pageable pageable);
+    Optional<Question> findTop1ByCategoryIdAndLevelOrderByDisplayOrderDesc(String categoryId, QuestionLevel level);
 
-       // Find questions in a category with pagination and sorting
-       Page<Question> findByCategory_IdOrderByCreatedAtDesc(String categoryId, Pageable pageable);
+    // Migration helpers
+    @Query(value = "{ 'category': { $exists: true } }")
+    List<Question> findQuestionsWithOldCategoryDBRef();
 
-       // Custom aggregation to get questions with solution count
-       @Query(value = "{ 'category': ?0 }", fields = "{ 'title': 1, 'level': 1, 'createdAt': 1 }")
-       List<Question> findQuestionSummaryByCategory(String categoryId);
-
-       // Check if title exists (case-insensitive)
-       @Query("{ 'title': { $regex: ?0, $options: 'i' } }")
-       boolean existsByTitleIgnoreCase(String title);
+    @Query(value = "{ 'createdBy': { $exists: true } }")
+    List<Question> findQuestionsWithOldCreatedByDBRef();
 }
